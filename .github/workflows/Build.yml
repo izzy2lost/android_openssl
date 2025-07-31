@@ -12,8 +12,10 @@ jobs:
       ANDROID_NDK_VERSION: 26.0.10792818
 
     steps:
-      - name: Checkout repo
+      - name: Checkout android_openssl
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Install build dependencies
         run: |
