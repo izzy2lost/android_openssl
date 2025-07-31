@@ -4,48 +4,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-openssl:
     runs-on: ubuntu-latest
 
-    env:
-      # Optional: override these if needed
-      ANDROID_NDK_VERSION: 26.0.10792818
-
     steps:
-      - name: Checkout android_openssl
+      - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl tar llvm make
+          sudo apt-get install -y curl build-essential python3 llvm
 
-      - name: Setup Android SDK & NDK
+      - name: Make build script executable
+        run: chmod +x build_ssl.sh
+
+      - name: Set up Android SDK & NDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: ${{ env.ANDROID_NDK_VERSION }}
+          packages: ndk;26.0.10792818
 
-      - name: Show NDK location
-        run: |
-          echo "NDK location: $ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}"
-          ls $ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}
+      - name: Show available NDKs
+        run: ls $ANDROID_HOME/ndk
 
-      - name: Build OpenSSL for all Android ABIs
+      - name: Build all OpenSSL ABIs
         env:
-          NDK_ROOT_PREFIX: ${{ env.ANDROID_HOME }}/ndk
+          OUTPUT_ROOT: ${{ github.workspace }}/output
+          BUILD_DIR: ${{ github.workspace }}/build
+          NDK_ROOT_PREFIX: $ANDROID_HOME/ndk
         run: |
-          chmod +x ./build-openssl.sh
-          ./build-openssl.sh
+          ./build_ssl.sh
 
-      - name: Collect .so files for upload
-        run: |
-          mkdir -p artifacts
-          find build -name "*.so" -exec cp --parents {} artifacts/ \;
+      - name: List build output
+        run: ls -lR output
 
-      - name: Upload OpenSSL .so artifacts
+      - name: Upload OpenSSL Android outputs
         uses: actions/upload-artifact@v4
         with:
-          name: android-openssl-libs
-          path: artifacts/
+          name: openssl-android
+          path: output/
