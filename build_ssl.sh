@@ -1,11 +1,5 @@
 #!/bin/bash -x
 
-## Prerequisites
-## The script supports builds from Linux and macOS.
-## set BUILD_DIR and OUTPUT_ROOT variables to use custom build and output paths.
-## Set NDK_ROOT_PREFIX to use custom Android NDK root path that contains various
-## NDK versions.
-
 set -eo pipefail
 
 [ -n "$OUTPUT_ROOT" ] || OUTPUT_ROOT="$(pwd)"
@@ -25,7 +19,6 @@ architectures=("arm64" "arm" "x86_64" "x86")
 build_types=('' 'no-asm')
 
 get_qt_arch() {
-    # takes OpenSSL arch as argument
     case $1 in
     arm64)
         echo "arm64-v8a"
@@ -40,7 +33,6 @@ get_qt_arch() {
 }
 
 get_ssl_build_dir() {
-    # takes OpenSSL version as argument
     case $1 in
     1.1.*)
         echo "ssl_1.1"
@@ -54,19 +46,9 @@ get_ssl_build_dir() {
     esac
 }
 
+# Always use your NDK version for all OpenSSL versions
 get_ssl_ndk_version() {
-    # takes OpenSSL version as argument
-    case $1 in
-    1.1.*)
-        echo "21.4.7075529"
-        ;;
-    3.*)
-        echo "25.2.9519653"
-        ;;
-    *)
-        echo $1
-        ;;
-    esac
+    echo "26.0.10792818"
 }
 
 download_ssl_version() {
@@ -75,7 +57,7 @@ download_ssl_version() {
 
     ssl_filename="openssl-$ssl_version.tar.gz"
     echo "Downloading OpenSSL $ssl_filename"
-    if [ ! -f "$ssl_filename" ]; then
+    if [ ! -f "$download_dir/$ssl_filename" ]; then
         curl -sfL -o "$download_dir/$ssl_filename" "https://www.openssl.org/source/$ssl_filename" \
             || (echo "Downloading sources failed!"; exit 1)
     fi
@@ -117,9 +99,11 @@ configure_ssl() {
         fi
     done
 
+    # Always use API 24 for all OpenSSL builds
+    ANDROID_API=24
+
     case $ssl_version in
     1.1.*)
-        ANDROID_API=21
         # use suffix _1_1.so with OpenSSL 1.1.x (up to Qt 6.4)
         patch -p0 <<EOF
 --- Configurations/15-android.conf
@@ -136,7 +120,6 @@ configure_ssl() {
 EOF
         ;;
     3.*)
-        ANDROID_API=23
         # use suffix _3.so with OpenSSL 3.1.x (Qt 6.5.0 and above)
         patch -p0 <<EOF
 --- Configurations/15-android.conf
@@ -164,7 +147,6 @@ EOF
 
 build_ssl() {
     log_file=$1
-
     echo "Building..."
     make -j$(nproc) SHLIB_VERSION_NUMBER= build_libs 2>&1 1>>${log_file} \
         | tee -a ${log_file} || exit 1
@@ -183,9 +165,9 @@ copy_build_artefacts() {
     cp libcrypto.a libssl.a "$output_dir" || exit 1
 
     # Create relative non-versioned symlinks
-    ln -s $(find . -name "libcrypto_*.so" -exec basename {} \;) "${output_dir}/libcrypto.so"
-    ln -s $(find . -name "libssl_*.so" -exec basename {} \;) "${output_dir}/libssl.so"
-    ln -s "../include" "$output_dir/include"
+    ln -sf $(find . -name "libcrypto_*.so" -exec basename {} \;) "${output_dir}/libcrypto.so"
+    ln -sf $(find . -name "libssl_*.so" -exec basename {} \;) "${output_dir}/libssl.so"
+    ln -sf "../include" "$output_dir/include"
 }
 
 [[ -e "$BUILD_DIR" ]] && rm -fr "$BUILD_DIR"
@@ -220,11 +202,9 @@ for build_type in "${build_types[@]}"; do
             rm -fr "$output_dir"
             mkdir -p "$output_dir" || exit 1
 
-            # Copy the include dir only once since since it's the same for all abis
+            # Copy the include dir only once since it's the same for all abis
             if [ ! -d "$output_dir/../include" ]; then
                 cp -a include "$output_dir/../" || exit 1
-
-                # Clean include folder
                 find "$output_dir/../" -name "*.in" -delete
                 find "$output_dir/../" -name "*.def" -delete
             fi
@@ -232,7 +212,6 @@ for build_type in "${build_types[@]}"; do
             build_ssl ${log_file}
             strip_libs
             copy_build_artefacts ${output_dir}
-            
 
             popd
         done
