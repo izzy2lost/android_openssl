@@ -8,7 +8,7 @@ set -eo pipefail
 # Set Android NDK path prefix under the Android SDK
 if [ -z "$NDK_ROOT_PREFIX" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
-        NDK_ROOT_PREFIX="$HOME/Library/Android/sdk/ndk"
+        NDK_ROOT_PREFIX="/usr/local/lib/android/sdk/ndk"
     else
         NDK_ROOT_PREFIX="$HOME/Android/Sdk/ndk"
     fi
